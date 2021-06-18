@@ -11,31 +11,40 @@ cd "$1"
 
 # shellcheck disable=SC2154
 CHART_DIR=$(echo "$config" | jq -r ".params.chart")
-CHART_VERSION=$(echo "$config" | jq -r ".params.version_file" | xargs cat)
-CHART_APP_VERSION=$(echo "$config" | jq -r ".params.app_version_file" | xargs cat)
+CHART_YAML_FILE=$CHART_DIR/Chart.yaml
 
-CHART_YAML_FILE=Chart.yaml
-CHART_YAML=${CHART_DIR}/${CHART_YAML_FILE}
-
-if [ ! -f ${CHART_YAML} ]
+if [ ! -f $CHART_YAML_FILE ]
 then
-  log "😵 $RED$CHART_YAML_FILE$NC not found in $CHART_DIR"
+  log "😵$RED file $CHART_YAML_FILE not found."
   exit 1
 fi
 
+CHART_VERSION_FILE=$(echo "$config" | jq -r ".params.version_file // empty" | sed 's/^null$//')
+CHART_APP_VERSION_FILE=$(echo "$config" | jq -r ".params.app_version_file // empty" | sed 's/^null$//')
+
+log "chart version file: $CHART_VERSION_FILE"
+log "chart app version file: $CHART_APP_VERSION_FILE"
+
+CHART_VERSION=$([ ! -z $CHART_VERSION_FILE ] && cat $CHART_VERSION_FILE || yq e '.version' $CHART_YAML_FILE)
+CHART_APP_VERSION=$([ ! -z $CHART_APP_VERSION_FILE ] && cat $CHART_APP_VERSION_FILE || yq e '.appVersion' $CHART_YAML_FILE)
+
+log "chart version: $CHART_VERSION"
+log "chart app version: $CHART_APP_VERSION"
+
 function readChartName {
-  helm show chart ${CHART_DIR} | grep "^name: " | cut -d' ' -f2
+  helm show chart $CHART_DIR | yq e '.name' -
 }
 
+# If chart name set and differs from Chart.yaml, update Chart.yaml
 EFFECTIVE_CHART_NAME=$(readChartName)
 if [[ "$CHART_NAME" != "$EFFECTIVE_CHART_NAME" ]]
 then
   log "⚠️ Chart name $RED$EFFECTIVE_CHART_NAME$NC in $CHART_YAML_FILE does not match config. Overriding with $GREEN$CHART_NAME$NC..."
-  sed -i '/^name:/d' ${CHART_YAML}
-  echo -e "\nname: $CHART_NAME" >> ${CHART_YAML}
+  sed -i '/^name:/d' ${CHART_YAML_FILE}
+  echo -e "\nname: $CHART_NAME" >> ${CHART_YAML_FILE}
   if [[ "$CHART_NAME" != "$(readChartName)" ]]
   then
-    log "😵😵😵 Failed setting chart name $RED$CHART_NAME$NC in $RED$$CHART_YAML"
+    log "😵😵😵 Failed setting chart name $RED$CHART_NAME$NC in $RED$$CHART_YAML_FILE"
     exit 1
   fi
 else

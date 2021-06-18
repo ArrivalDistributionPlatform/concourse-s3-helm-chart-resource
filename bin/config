@@ -2,23 +2,32 @@ config=$(cat)
 
 echo $config > /tmp/source_vars
 
+log() {
+  args=("$@")
+  echo -e "${args[@]}${NC}" 1>&2 
+}
+
 export AWS_ACCESS_KEY_ID=$(echo $config | jq -r ".source.aws_access_key_id")
 export AWS_SECRET_ACCESS_KEY=$(echo $config | jq -r ".source.aws_secret_access_key")
 S3_BUCKET_NAME=$(echo $config | jq -r ".source.s3_bucket_name")
 export AWS_DEFAULT_REGION=$(aws s3api get-bucket-location --bucket $S3_BUCKET_NAME | jq -r '.LocationConstraint // "us-east-1"')
 S3_BUCKET_PATH=$(echo $config | jq -r ".source.s3_bucket_path")
-CHART_NAME=$(echo $config | jq -r ".source.chart_name")
+CHART_NAME=$(echo $config | jq -r ".source.chart_name // empty" | sed 's/^null$//')
+
+if [ -z $CHART_NAME ]
+then
+  log "😵$RED .source.chart_name is required"
+  exit 1
+fi
+
+log "Got chart name '$CHART_NAME'"
 
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-log() {
-  args=("$@")
-  echo -e "${args[@]}${NC}" 1>&2 
-}
-
-log "Configuring local chart repo"
 REPO_ADDRESS=s3://${S3_BUCKET_NAME}/${S3_BUCKET_PATH}
+log "Configuring local chart repo 's3' with URI $REPO_ADDRESS"
+
 helm repo add s3 ${REPO_ADDRESS} 1>&2

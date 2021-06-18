@@ -26,8 +26,8 @@ Packages and uploads a chart to S3, updating `index.yaml` in the root of the rep
 #### Parameters
 
 * `chart`: *Required* The chart directory.
-* `version_file`: *Required* File containing chart version.
-* `app_version_file`: *Required* File containing app version. 
+* `version_file`: *Optional* File containing chart version. If omitted, `version` is read from `Chart.yaml`.
+* `app_version_file`: *Optional* File containing app version. If omitted, `appVersion` is read from `Chart.yaml`.
 
 ## Example Configuration
 
